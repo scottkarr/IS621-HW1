@@ -1,0 +1,217 @@
+---
+title: "Moneyball Multiple Regression Model"
+output:
+  html_document:
+    css: ./lab.css
+    highlight: pygments
+    keep_md: yes
+    theme: cerulean
+    toc: yes
+  pdf_document: default
+---
+
+```{r load-libaries, eval=TRUE, include=FALSE}
+library(fBasics)
+library(knitr)
+```
+
+```{r load-data, eval=TRUE,include=FALSE}
+setwd("~/IS621Summer2016/HW1")
+BB.list <- read.csv("more/moneyball-training-data.csv",
+    stringsAsFactors=FALSE, sep=",")
+BB.df <- data.frame(BB.list)
+DescStats.df <- basicStats(BB.df)
+```
+
+# Data Dictionary
+
+variable            | definition                              | effect
+----------------    | -----------                             |------------
+`INDEX`             | Identification Variable (do not use)    | None
+`TARGET_WINS`       | Number of wins                          | Positive
+`TEAM_BATTING_H`    | Base Hits by batters (1B,2B,3B,HR)      | Positive
+`TEAM_BATTING_2B`   | Doubles by batters (2B)                 | Positive
+`TEAM_BATTING_3B`   | Triples by batters (3B)                 | Positive
+`TEAM_BATTING_HR`   | Homeruns by batters (4B)                | Positive
+`TEAM_BATTING_BB`   | Walks by batters                        | Positive
+`TEAM_BATTING_SO`   | Strikeouts by batters                   | Negative
+`TEAM_BATTING_HBP`  | Batters hit by pitch (get a free base)  | Positive
+`TEAM_BASERUN_SB`   | Stolen bases                            | Positive
+`TEAM_BASERUN_CS`   | Caught stealing                         | Negative
+`TEAM_PITCHING_H`   | Hits allowed                            | Negative
+`TEAM_PITCHING_HR`  | Homeruns allowed                        | Negative
+`TEAM_PITCHING_BB`  | Walks allowed                           | Negative
+`TEAM_PITCHING_SO`  | Strikeouts by pitchers                  | Positive
+`TEAM_FIELDING_E`   | Errors                                  | Negative
+`TEAM_FIELDING_DP`  | Double Plays                            | Positive
+----------------    | -----------                             |------------
+
+# Exploring the data
+
+Many of the statistics in the data sets provided have been extrapolated using base statistics from the deadball 
+era circa ~1900-1920 and prior.  Outliers that need to be adjusted can be found using the reference link [!baseball-almanac](http://www.baseball-almanac.com/recbooks/rb_stba2.shtml).  Note that during the deadball
+era, a nearly soft ball was used which had dramatic effect on power hitting and pitching statistics.
+Any adjustment that rationalize the data from this period into observations that include post WWII statistics
+should be bound by the later era's limits so distributions aren't skewed.
+
+```{r hist-wins, eval = TRUE,include=FALSE}
+hist(BB.df$TARGET_WINS)
+```
+
+Generalized Equation for Multiple Regression
+\[
+\begin{aligned}
+\widehat{wins} &= \hat{\beta}_0 + 
+                    \hat{\beta}_1 \times hits  + 
+                    \hat{\beta}_2 \times doubles + 
+                    \hat{\beta}_3 \times triples +
+                    \hat{\beta}_4 \times homeruns + 
+                    \hat{\beta}_5 \times walks + 
+                    \hat{\beta}_6 \times strikeouts . . . +
+                    \end{aligned}
+\]
+
+## Full Panel
+```{r full, eval = TRUE}
+#wins x full panel
+pairs(TARGET_WINS~.,
+        data=BB.df,pch=".",gap=.5,upper.panel=panel.smooth)
+ml.full <- lm(TARGET_WINS~.
+                  , data = BB.df)
+summary(ml.full)
+```
+
+## Slugging
+The most hits in a single season (unadjusted) is 1783--NL Philadelphia Phillies 1930.
+The most doubles in a single season (unadjusted) is 376--AL Texas in 2008.
+The most triples in a single season (unadjusted) is 153--NL Baltimore in 1894.
+Records that exceed these amounts should be adjusted either to NA or the median.
+
+```{r summary-slugging, eval=TRUE}
+kable(DescStats.df[,2:6],align='l',digits = c(0,2,2))
+```
+
+```{r boxplot-slugging, eval = TRUE,include=FALSE}
+boxplot(BB.df[,3:6],main="Baseball Team Stats", 
+        	xlab="Slugging") 
+```
+
+```{r slugging, eval = TRUE, tidy = TRUE}
+#wins x batting - slugging
+pairs(TARGET_WINS~TEAM_BATTING_H+TEAM_BATTING_2B+TEAM_BATTING_3B+TEAM_BATTING_HR,
+        data=BB.df,pch=".",gap=.5,upper.panel=panel.smooth)
+ml.slugging <- lm(TARGET_WINS~TEAM_BATTING_H+TEAM_BATTING_2B+TEAM_BATTING_3B+TEAM_BATTING_HR
+                  , data = BB.df)
+summary(ml.slugging)
+```
+
+## On-Base
+102 strikeout NAs can remain as long as they're not counted in descriptive statistics 
+as observations.  2085 hit by pitch NAs disqualifies this field from use in the model.
+
+The most walks in a single season (unadjusted) is 835--AL Boston Red Sox in 1949.
+The fewest walks in a single season (unadjusted) is 282--NL St. Louis Cardinals 1908.
+Records that exceed these amounts should be adjusted either to NA or the median.
+
+```{r summary-onbase, eval=TRUE}
+kable(DescStats.df[,c(7,8,11)],align='l',digits = c(0,2,2))
+```
+
+```{r boxplot-onbase, eval = TRUE}
+boxplot(BB.df[,c(7,8,11)],main="Baseball Team Stats", 
+        	xlab="On Base") 
+```
+
+```{r onbase, eval = TRUE, tidy = TRUE}
+#wins x batting - on-base
+pairs(TARGET_WINS~TEAM_BATTING_BB+TEAM_BATTING_SO+TEAM_BATTING_HBP,
+        data=BB.df,pch=".",gap=.5,upper.panel=panel.smooth)
+ml.onbase <- lm(TARGET_WINS~TEAM_BATTING_BB+TEAM_BATTING_SO+TEAM_BATTING_HBP
+                  , data = BB.df)
+summary(ml.onbase)
+```
+
+## Base Running
+131 stolen base NAs can & 772 caught stealing NAs can remain as long as they're not counted
+in descriptive statistics.
+
+The most stolen bases in a single season (unadjusted) is 426--NL New York in 1893.
+The most caught stealing bases count in a single season (unadjusted) is 191--AL NY in 1914.
+Records that exceed these amounts should be adjusted either to NA or the median.
+
+These statistics are co-linear and may be better used as a derived statistic for
+Expected value of team stolen bases E(SB) = SB * likelihood of success (SB/SB attempts)
+
+```{r summary-baserunning, eval=TRUE}
+kable(DescStats.df[,9:10],align='l',digits = c(0,2,2))
+```
+
+```{r boxplot-baserunning, eval = TRUE,include=FALSE}
+boxplot(BB.df[,9:10],main="Baseball Team Stats", 
+        	xlab="Base Running") 
+```
+
+```{r baserunning, eval = TRUE, tidy = TRUE}
+#wins x batting - base running
+pairs(TARGET_WINS~TEAM_BASERUN_SB+TEAM_BASERUN_CS,
+        data=BB.df,pch=".",gap=.5,upper.panel=panel.smooth)
+ml.baserunning <- lm(TARGET_WINS~TEAM_BASERUN_SB+TEAM_BASERUN_CS
+                  , data = BB.df)
+summary(ml.baserunning)
+```
+
+## Fielding
+286 Fielding error NAs can remain as long as they're not counted in descriptive statistics 
+as observations.  
+
+The most fielding errors in a single season (unadjusted) is 639--NL Philadelphia in 1883.
+The most fielding errors in a single season (unadjusted) post WWII is 234--NL Philadelphia in 1945.
+Records that exceed the post WWII amount should be adjusted either to NA or the median.
+
+```{r summary-fielding, eval=TRUE}
+kable(DescStats.df[,16:17],align='l',digits = c(0,2,2))
+```
+
+```{r boxplot-fielding, eval = TRUE}
+boxplot(BB.df[,16:17],main="Baseball Team Stats", 
+        	xlab="Fielding") 
+```
+
+```{r fielding, eval = TRUE, tidy = TRUE}
+#wins x batting - base running
+pairs(TARGET_WINS~TEAM_FIELDING_E+TEAM_FIELDING_DP,
+        data=BB.df,pch=".",gap=.5,upper.panel=panel.smooth)
+ml.fielding <- lm(TARGET_WINS~TEAM_FIELDING_E+TEAM_FIELDING_DP
+                  , data = BB.df)
+summary(ml.fielding)
+```
+
+## Pitching
+286 Strikeout error NAs can remain as long as they're not counted in descriptive statistics 
+as observations.  
+
+The most hits given up in a single season (unadjusted) that I could find was fewer that 2000.
+The most homeruns given up in a single season (unadjusted) that I could find was fewer that 250.
+The most walks given up in a single season (unadjusted) that I could find was fewer that 800.
+The most strikeouts thrown in a single season (unadjusted) that I could find was fewer that 1400.
+Records that exceed these amount should be adjusted either to NA or the median.
+
+```{r summary-pitching, eval=TRUE}
+kable(DescStats.df[,12:15],align='l',digits = c(0,2,2))
+```
+
+```{r boxplot-pitching, eval = TRUE}
+boxplot(BB.df[,12:15],main="Baseball Team Stats", 
+        	xlab="Pitching") 
+```
+
+```{r pitching, eval = TRUE, tidy = TRUE}
+#wins x batting - pitching
+pairs(TARGET_WINS~TEAM_PITCHING_H+TEAM_PITCHING_HR+TEAM_PITCHING_BB+TEAM_PITCHING_SO,
+        data=BB.df,pch=".",gap=.5,upper.panel=panel.smooth)
+ml.pitching <- lm(TARGET_WINS~TEAM_PITCHING_H+TEAM_PITCHING_HR+TEAM_PITCHING_BB+TEAM_PITCHING_SO
+                  , data = BB.df)
+summary(ml.pitching)
+```
+
+
